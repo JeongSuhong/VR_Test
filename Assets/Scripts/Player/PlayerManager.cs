@@ -18,76 +18,56 @@ public class PlayerManager : MonoBehaviour
         }
     }
 
-    public PlayerHandAction leftHand;
-    public PlayerHandAction rightHand;
-
     public GameObject ConnectUI;
 
-    private ItemBase grabItem;
+    private PlayerHandAction[] hands;
 
-
-
-    public int isGrab;
+    private ItemBase[] grabItem;
 
     private void Awake()
     {
         instance = this;
     }
 
-    private void Update()
+    private void Start()
     {
-        isGrab = 0;
-        SteamVR_Action_Boolean grabAction = SteamVR_Input.GetBooleanAction("grab");
+        hands = GetComponentsInChildren<PlayerHandAction>();
 
-        if (grabAction.GetState(SteamVR_Input_Sources.LeftHand))
-            isGrab = 1;
-        else if (grabAction.GetState(SteamVR_Input_Sources.RightHand))
-            isGrab = 2;
+        for (int i = 0; i < hands.Length; i++)
+            hands[i].handInputCallback = HandInputAction;
 
-        if (isGrab != 0 && grabItem == null)
+        grabItem = new ItemBase[2];
+    }
+
+    private void HandInputAction(SteamVR_Input_Sources inputSources, DataDefine.HAND_INPUT_ACTION actionType)
+    {
+        int targetHandIndex = inputSources == SteamVR_Input_Sources.LeftHand ? 0 : 1;
+
+        switch (actionType)
         {
-            if (isGrab == 1)
-            {
-                if (leftHand.collisionItem != null)
-                {
-                    if (grabItem != null)
-                        grabItem.NonGrab(Vector3.zero, Vector3.zero);
-
-                    grabItem = leftHand.collisionItem.GetComponent<ItemBase>();
-                    grabItem.Grab(leftHand.transform);
-                }
-                else if (ConnectUI != null)
+            case DataDefine.HAND_INPUT_ACTION.GRAB:
+                if (ConnectUI != null && hands[targetHandIndex].IsViewLaser)
                     ConnectUI.GetComponent<Button>().onClick.Invoke();
-            }
-            else
-            {
-                if (rightHand.collisionItem != null)
+                else if (hands[targetHandIndex].collisionItem != null)
                 {
-                    if (grabItem != null)
-                        grabItem.NonGrab(Vector3.zero, Vector3.zero);
-
-                    grabItem = rightHand.collisionItem.GetComponent<ItemBase>();
-                    grabItem.Grab(rightHand.transform);
+                    grabItem[targetHandIndex] = hands[targetHandIndex].collisionItem.GetComponent<ItemBase>();
+                    grabItem[targetHandIndex].Grab(hands[targetHandIndex].gameObject.transform);
                 }
-                else if (ConnectUI != null)
-                    ConnectUI.GetComponent<Button>().onClick.Invoke();
-            }
-        }
-        else if (isGrab == 0 && grabItem != null)
-        {
-            SteamVR_Action_Pose parnet = SteamVR_Input.GetPoseAction("pose");
-            grabItem.NonGrab(parnet.GetVelocity(SteamVR_Input_Sources.RightHand), parnet.GetAngularVelocity(SteamVR_Input_Sources.RightHand));
-            grabItem = null;
-        }
+                break;
 
-        if (grabItem != null && grabItem.GetComponent<ItemCamera>() != null)
-        {
-            SteamVR_Action_Boolean captureAction = SteamVR_Input.GetBooleanAction("capture");
+            case DataDefine.HAND_INPUT_ACTION.NON_GRAB:
+                if (grabItem[targetHandIndex] != null)
+                {
+                    SteamVR_Action_Pose parnet = SteamVR_Input.GetPoseAction("pose");
+                    grabItem[targetHandIndex].NonGrab(parnet.GetVelocity(inputSources), parnet.GetAngularVelocity(inputSources));
+                    grabItem[targetHandIndex] = null;
+                }
+                break;
 
-            if (captureAction.GetStateDown(SteamVR_Input_Sources.LeftHand) || captureAction.GetStateDown(SteamVR_Input_Sources.RightHand))
-            {
-                grabItem.GetComponent<ItemCamera>().Capture();
-            }
+            case DataDefine.HAND_INPUT_ACTION.CAPTURE:
+                if (grabItem[targetHandIndex] != null)
+                    grabItem[targetHandIndex].GetComponent<ItemCamera>().Capture();
+                break;
         }
     }
 }
